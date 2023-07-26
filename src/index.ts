@@ -90,9 +90,7 @@ function unsubber<Events extends Record<EventType, unknown>>(
     };
   };
 
-  return {
-    ...event,
-
+  return Object.assign({}, event, {
     on<Key extends keyof Events, Context extends object>(
       type: Key,
       handler: GenericEventHandler,
@@ -109,7 +107,7 @@ function unsubber<Events extends Record<EventType, unknown>>(
 
       return offFn;
     },
-  };
+  });
 }
 
 export default unsubber;
