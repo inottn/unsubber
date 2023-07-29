@@ -6,53 +6,102 @@ type FunctionKeys<T extends object> = {
   [K in keyof T]-?: T[K] extends Function ? K : never;
 }[keyof T];
 type OffFn = () => void;
-export type EmitterReturnType<Events extends Record<EventType, unknown>> = Omit<
-  ReturnType<typeof mitt<Events>>,
-  'on'
-> & {
-  on<Key extends keyof Events>(type: Key, handler: Handler<Events[Key]>): OffFn;
-  on<Key extends keyof Events, Context extends object>(
-    type: Key,
-    handler: Handler<Events[Key]>,
-    context: Context,
-    methodName: FunctionKeys<Context>,
-  ): OffFn;
-  on(type: '*', handler: WildcardHandler<Events>): OffFn;
-  on<Context extends object>(
-    type: '*',
-    handler: WildcardHandler<Events>,
-    context: Context,
-    methodName: FunctionKeys<Context>,
-  ): OffFn;
-};
+
+export type OnOptions<Context extends object> = Partial<{
+  context: Context;
+  methodName: FunctionKeys<Context>;
+  groupName: EventType;
+}>;
+export type UnsubberReturnType<Events extends Record<EventType, unknown>> =
+  Omit<ReturnType<typeof mitt<Events>>, 'on'> & {
+    on<Key extends keyof Events, Context extends object>(
+      type: Key,
+      handler: Handler<Events[Key]>,
+      options?: OnOptions<Context>,
+    ): OffFn;
+    on<Context extends object>(
+      type: '*',
+      handler: WildcardHandler<Events>,
+      options?: OnOptions<Context>,
+    ): OffFn;
+    offGroup(groupName: string): void;
+  };
 
 function unsubber<Events extends Record<EventType, unknown>>(
   ...args: Parameters<typeof mitt<Events>>
-): EmitterReturnType<Events> {
+): UnsubberReturnType<Events> {
   type GenericEventHandler =
     | Handler<Events[keyof Events]>
     | WildcardHandler<Events>;
+  type MethodMap = Map<string | number | symbol, Set<OffFn>>;
 
-  const event = mitt<Events>(...args);
-  const contextMap = new Map<object, Map<string | number | symbol, OffFn[]>>();
+  const events = mitt<Events>(...args);
+  const groupEvents = mitt();
+  const contextMap = new WeakMap<object, MethodMap>();
+  const handlerMap = new WeakMap<GenericEventHandler, OffFn>();
+
+  const getMethodMapAndOffFnSetFromContext = <Context extends object>(
+    context: Context,
+    methodName: string | number | symbol,
+  ) => {
+    const methodMap = contextMap.get(context);
+
+    if (!methodMap) return [];
+
+    const offFnSet = methodMap.get(methodName);
+
+    return [methodMap, offFnSet] as const;
+  };
+
+  const removeMethodFromContext = <Context extends object>(
+    context: Context,
+    methodMap: MethodMap,
+    methodName: string | number | symbol,
+  ) => {
+    methodMap.delete(methodName);
+
+    if (methodMap.size === 0) {
+      contextMap.delete(context);
+    }
+  };
+
+  const removeOffFnFromContext = <Context extends object>(
+    context: Context,
+    methodName: FunctionKeys<Context>,
+    offFn: OffFn,
+  ) => {
+    const [methodMap, offFnSet] = getMethodMapAndOffFnSetFromContext(
+      context,
+      methodName,
+    );
+
+    if (offFnSet) {
+      offFnSet.delete(offFn);
+
+      if (offFnSet.size === 0) {
+        removeMethodFromContext(context, methodMap, methodName);
+      }
+    }
+  };
 
   const setOffFnToContextMap = <Context extends object>(
     context: Context,
     methodName: FunctionKeys<Context>,
     offFn: OffFn,
   ) => {
-    const methodMap = contextMap.get(context);
+    const [methodMap, offFnSet] = getMethodMapAndOffFnSetFromContext(
+      context,
+      methodName,
+    );
 
     if (methodMap) {
-      const offFnList = methodMap.get(methodName);
-
-      if (offFnList) {
-        offFnList.push(offFn);
+      if (offFnSet) {
+        offFnSet.add(offFn);
       } else {
-        methodMap.set(methodName, [offFn]);
+        methodMap.set(methodName, new Set([offFn]));
       }
     } else {
-      contextMap.set(context, new Map([[methodName, [offFn]]]));
+      contextMap.set(context, new Map([[methodName, new Set([offFn])]]));
     }
   };
 
@@ -71,42 +120,61 @@ function unsubber<Events extends Record<EventType, unknown>>(
       const returnValue = isFunction(origin)
         ? (origin as Function).apply(this, args)
         : undefined;
-      const methodMap = contextMap.get(context);
+      const [methodMap, offFnSet] = getMethodMapAndOffFnSetFromContext(
+        context,
+        methodName,
+      );
 
-      if (!methodMap) return returnValue;
-
-      const handlers = methodMap.get(methodName);
-
-      if (handlers) {
-        handlers.forEach((handler) => handler());
-        methodMap.delete(methodName);
-
-        if (methodMap.size === 0) {
-          contextMap.delete(context);
-        }
+      if (methodMap && offFnSet) {
+        offFnSet.forEach((off) => off());
+        removeMethodFromContext(context, methodMap, methodName);
       }
 
       return returnValue;
     };
   };
 
-  return Object.assign({}, event, {
+  const offGroup = (groupName: string) => {
+    groupEvents.emit(groupName);
+    groupEvents.off(groupName);
+  };
+
+  return Object.assign({}, events, {
     on<Key extends keyof Events, Context extends object>(
       type: Key,
       handler: GenericEventHandler,
-      context?: Context,
-      methodName?: FunctionKeys<Context>,
+      options?: OnOptions<Context>,
     ) {
-      event.on(type, handler as Handler<Events[keyof Events]>);
-      const offFn = () => event.off(type, handler as Handler<Events[Key]>);
+      const offFnList: OffFn[] = [
+        () => events.off(type, handler as Handler<Events[Key]>),
+      ];
+      const offFn = () => {
+        offFnList.forEach((off) => off());
+      };
+      handlerMap.set(handler, offFn);
+      events.on(type, handler as Handler<Events[keyof Events]>);
 
-      if (context && methodName) {
-        hijackMethod(context, methodName);
-        setOffFnToContextMap(context, methodName, offFn);
+      if (options) {
+        const { context, methodName, groupName } = options;
+
+        if (context && methodName) {
+          offFnList.push(() =>
+            removeOffFnFromContext(context, methodName, offFn),
+          );
+          hijackMethod(context, methodName);
+          setOffFnToContextMap(context, methodName, offFn);
+        }
+
+        if (groupName) {
+          offFnList.push(() => groupEvents.off(groupName, offFn));
+          groupEvents.on(groupName, offFn);
+        }
       }
 
       return offFn;
     },
+
+    offGroup,
   });
 }
 

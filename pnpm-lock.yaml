@@ -2,8 +2,8 @@ lockfileVersion: '6.0'
 
 dependencies:
   '@inottn/fp-utils':
-    specifier: ^0.0.9
-    version: 0.0.9
+    specifier: ^0.0.10
+    version: 0.0.10
   mitt:
     specifier: ^3.0.1
     version: 3.0.1
@@ -21,6 +21,9 @@ devDependencies:
   eslint:
     specifier: ^8.45.0
     version: 8.45.0
+  eslint-config-prettier:
+    specifier: ^8.9.0
+    version: 8.9.0(eslint@8.45.0)
   husky:
     specifier: ^8.0.3
     version: 8.0.3
@@ -348,8 +351,8 @@ packages:
     resolution: {integrity: sha512-ZnQMnLV4e7hDlUvw8H+U8ASL02SS2Gn6+9Ac3wGGLIe7+je2AeAOxPY+izIPJDfFDb7eDjev0Us8MO1iFRN8hA==}
     dev: true
 
-  /@inottn/fp-utils@0.0.9:
-    resolution: {integrity: sha512-RTi/WBWmwKdpGYyqBRPYD/qFB89DqQkdEdHtgRuFGN9M5sgB3Fy8snj9qpSFg4z9/VrsHfOKm6qq/6i4cddalA==}
+  /@inottn/fp-utils@0.0.10:
+    resolution: {integrity: sha512-aEfnn0Cxq88e9L19UB0x/JzNqKH3xxbb0uu2XmDE1kcdlb+AotUqjxa2ITrMxmy7kx18Zy9sL4AHLt67wYueVQ==}
     dev: false
 
   /@isaacs/cliui@8.0.2:
@@ -960,6 +963,15 @@ packages:
   /escape-string-regexp@4.0.0:
     resolution: {integrity: sha512-TtpcNJ3XAzx3Gq8sWRzJaVajRs0uVxA2YAkdb1jm2YkPz4G6egUFAyA3n5vtEIZefPk5Wa4UXbKuS5fKkJWdgA==}
     engines: {node: '>=10'}
+    dev: true
+
+  /eslint-config-prettier@8.9.0(eslint@8.45.0):
+    resolution: {integrity: sha512-+sbni7NfVXnOpnRadUA8S28AUlsZt9GjgFvABIRL9Hkn8KqNzOp+7Lw4QWtrwn20KzU3wqu1QoOj2m+7rKRqkA==}
+    hasBin: true
+    peerDependencies:
+      eslint: '>=7.0.0'
+    dependencies:
+      eslint: 8.45.0
     dev: true
 
   /eslint-scope@7.2.1:
