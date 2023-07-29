@@ -1,6 +1,6 @@
 {
   "name": "unsubber",
-  "version": "0.0.2",
+  "version": "0.0.3",
   "packageManager": "pnpm@8.6.10",
   "description": "Based on mitt, supports unsubscribing after executing the provided method, simplifying event handling.",
   "author": "inottn<https://github.com/inottn>",
